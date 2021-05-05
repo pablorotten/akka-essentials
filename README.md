@@ -9,7 +9,6 @@ Course: https://github.com/rockthejvm/udemy-akka-essentials
 * Only 1 message delivery waranteed. No repeated messages
 * Sender-receiver pair order is mantained
 
-
 ### ActorSystem
 The initial setup for using actors is to create an ```ActorSystem```, define some ```Actors``` and instantiate them and sending and receiving messages.
 ActorSystem is a heavyweight data structure that controls a number of threads under the hood which then allocates to running actors.
@@ -180,3 +179,80 @@ alice ! WirelessPhoneMessage("Hi", bob) // no sender (big context)
 1. **alice** receives the message with ```WirelessPhoneMessage``` with a String and a reference to **bob**
 2. **alice** forward the String adding a "s" to **bob**
 3. **bob** receives a message with a String from **alice**. But checks the ```sender``` and is **dead letter**, the original sender
+
+### Changing Actor Behavior
+
+Dealing with states in Actors, the natural approach is create a ```var``` for it and in the message handler ```receive```
+take in account that state with if/else or similars. But this is a terrible approach. We are using side effects and having
+conditions inside the message handler can create a very complex code.
+
+#### context.become
+
+The solution is to create a message handler for each state and replace the the ```receive``` function as soon the state changes.
+
+To achieve that we have ```context.become(handler)```. There can be only one ``receive``` message handler at the same time, but we can write others
+and swap them as the current ```receive``` for that actor:
+
+```scala
+class StatelessActor extends Actor {
+  override def receive: Receive = handlerA // set handlerA by default
+
+  def handlerA: Receive = {
+    case A =>
+    case B => context.become(handlerB) // change my receive handler to handlerB
+    case s: String => println(s"$s >> handled by handlerA")
+  }
+
+  def handlerB: Receive = {
+    case A => context.become(handlerA)
+    case B =>
+    case s: String => println(s"$s >> handled by handlerB")
+  }
+}
+
+val statelessActor = system.actorOf(Props[StatelessActor])
+
+statelessActor ! B
+statelessActor ! "hi"
+```
+
+1. statelessActor receives message with B, changes the defualt receive ```handlerA with ```handlerB```
+2. statelessActor receives the String "hi!". Printlns "hi! >> handled by handlerB" since is using ```handlerB```
+
+**Stacking handlers**
+
+We can use the stack of handlers in order to acummulate handlers to be used in the following calls. We can push and pop handlers
+from the stack whenever we want.
+
+* ```context.become(handler, true)```/```context.become(handler)```: swaps the receive function with handler inmediatly
+* ```context.become(handler, false)```: adds the handler to the stack
+* ```context.unbecome()```: pop the first handler from the stack
+
+Every time the actor's ```receive``` function is called, picks the top handler function of the stack
+
+So for example, a kid can be happy if eats chocolate and sad if eats vegetables. By default is happy, but the more vegetable he eats, the saddest he become.
+If we give him chocolate he becomes a bit happier, but if we want the kid to be totally happy we have to give him one chocolate for each vegetable he ate:
+
+```scala
+class StatelessFussyKid extends Actor {
+
+  override def receive: Receive = happyReceive
+
+  def happyReceive: Receive = {
+    case Food(VEGETABLE) => context.become(sadReceive, false) // change my receive handler to sadReceive
+    case Food(CHOCOLATE) =>
+    case Ask(_) => sender() ! KidAccept
+  }
+
+  def sadReceive: Receive = {
+    case Food(VEGETABLE) => context.become(sadReceive, false)
+    case Food(CHOCOLATE) => context.unbecome()
+    case Ask(_) => sender() ! KidReject
+  }
+}
+```
+Stack:[] receive: happyReceive (default)
+1. Food(veg) >> Stack:[sadReceive] receive: sadReceive
+2. Food(veg) >> Stack:[sadReceive, sadReceive] receive: sadReceive
+3. Food(choco) >> Stack:[sadReceive] receive: sadReceive
+4. Food(choco) >> Stack:[] receive: happyReceive (default)
