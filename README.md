@@ -4,6 +4,12 @@ Course: https://github.com/rockthejvm/udemy-akka-essentials
 
 ## Akka Actors
 
+* Actors are single-trhead. No locks needed
+* Actor proccessing message is atomic. Once a thead starts doesn't release the message proccessing until is finished.
+* Only 1 message delivery waranteed. No repeated messages
+* Sender-receiver pair order is mantained
+
+
 ### ActorSystem
 The initial setup for using actors is to create an ```ActorSystem```, define some ```Actors``` and instantiate them and sending and receiving messages.
 ActorSystem is a heavyweight data structure that controls a number of threads under the hood which then allocates to running actors.
