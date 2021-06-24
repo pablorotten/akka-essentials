@@ -340,9 +340,7 @@ That breaks the actor encapsulation: a child can access to parent variables and 
 A child should only have access to parent reference and communicate with using messages.
 
 Red flags are:
-* 🚩 A parent actor using ```this``` sending a message to a child
-  ```creditCardRef ! AttachToAccount(this)```
-* 🚩 A message that has as argument another actor
-  ```case class AttachToAccount(bankAccount: NaiveBankAccount)```
-* 🚩 An actor using another actor's method directly instead of sending a message parent actor using ```this``` sending a message to a child
+* 🚩 A parent actor using ```this``` sending a message to a child: ```creditCardRef ! AttachToAccount(this)```
+* 🚩 A message that has as argument another actor: ```case class AttachToAccount(bankAccount: NaiveBankAccount)```
+* 🚩 An actor using another actor's method directly instead of sending a message parent actor using ```this``` sending a message to a child:
   ```case CheckStatus => account.withdraw(1)```
