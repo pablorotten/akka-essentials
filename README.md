@@ -345,4 +345,4 @@ Red flags are:
 * 🚩 A message that has as argument another actor
   ```case class AttachToAccount(bankAccount: NaiveBankAccount)```
 * 🚩 An actor using another actor's method directly instead of sending a message parent actor using ```this``` sending a message to a child
-  ```case CheckStatus => account.withdraw(1)
+  ```case CheckStatus => account.withdraw(1)```
