@@ -127,10 +127,10 @@ object ChangingActorBehavior extends App {
     def countReceive(currentCount: Int): Receive = {
       case Increment =>
         println(s"[countReceive($currentCount)] incrementing")
-        context.become(countReceive(currentCount + 1))
+        context.become(countReceive(currentCount + 1)) // re-assign the receive function with the updated count
       case Decrement =>
         println(s"[countReceive($currentCount)] decrementing")
-        context.become(countReceive(currentCount - 1))
+        context.become(countReceive(currentCount - 1))// re-assign the receive function with the updated count
       case Print => println(s"[countReceive($currentCount)] my current count is $currentCount")
     }
   }

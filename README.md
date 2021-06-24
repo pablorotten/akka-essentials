@@ -188,9 +188,9 @@ conditions inside the message handler can create a very complex code.
 
 #### context.become
 
-The solution is to create a message handler for each state and replace the the ```receive``` function as soon the state changes.
+The solution is to create a message handler for each state and replace the ```receive``` function as soon the state changes.
 
-To achieve that we have ```context.become(handler)```. There can be only one ``receive``` message handler at the same time, but we can write others
+To achieve that we have ```context.become(handler)```. There can be only one ```receive``` message handler at the same time, but we can write others
 and swap them as the current ```receive``` for that actor:
 
 ```scala
@@ -256,3 +256,93 @@ Stack:[] receive: happyReceive (default)
 2. Food(veg) >> Stack:[sadReceive, sadReceive] receive: sadReceive
 3. Food(choco) >> Stack:[sadReceive] receive: sadReceive
 4. Food(choco) >> Stack:[] receive: happyReceive (default)
+
+##### Using message handler instead of vars for saving states
+
+You might need to save some states or have some accumulators. To achieve that, use the arguments of the message handler.
+Every time you need to update any value, just context.become the message handler (can be the same handler) and pass as argument
+the values that have changed.
+
+For example, a counter that can receive an Increment or Decrement message adding/removing 1 to the count
+```scala
+class Counter extends Actor {
+
+  override def receive: Receive = countReceive(0)
+
+  def countReceive(currentCount: Int): Receive = {
+    // re-assign the receive function "countReceive" with the updated count as argument
+    case Increment => context.become(countReceive(currentCount + 1))
+    case Decrement => context.become(countReceive(currentCount - 1))
+  }
+}
+
+```
+
+### Child Actors
+
+An actor can create another actors:
+
+```scala
+class Parent extends Actor {
+
+  override def receive: Receive = {
+    case CreateChild(name) =>
+      // 1. creates a child and send it to the new handler
+      val childRef = context.actorOf(Props[Child], name)
+      context.become(withChild(childRef))
+  }
+
+  // 2. this handler is meant to be used when a child is created
+  def withChild(childRef: ActorRef): Receive = {
+    case TellChild(message) =>
+      if (childRef != null) // not needed
+        childRef forward message
+  }
+}
+
+// 2. Child actor that belongs to Parent actor
+class Child extends Actor {
+  override def receive: Receive = {
+    case message => println(s"${self.path} I got: $message")
+  }
+}
+```
+
+In this example we have this actor hierarchy: parent -> child
+```
+akka://ParentChildDemo/user/parent create child
+akka://ParentChildDemo/user/parent/child I got: Hey Kid!
+```
+
+But can be as complex as needed:
+parent -> child -> grandChild
+       -> child2 ->
+
+#### Guardian actors (top-level)
+* /system = system guardian: Akka actors for managing different things like logging
+* /user = user-level guardian: All the actors created with system.actorOf
+* / = the root guardian: Manages systems and user. An excepcion here kill the whole Actor system
+
+#### system.actorSelection: reference actors using the path
+
+We can use ```system.actorSelection(actorUrl)``` to reference an actor. We can saving it in a val and start sending messages to it.
+If ```actorSelection``` doesn't find any actor with this path, we'll be just sending dead letters.
+
+```scala
+val childSelection = system.actorSelection("/user/parent/child") // goes to the Child actor Parent just created
+val childSelection = system.actorSelection("/user/parent/child2") // goes to dead letter
+```
+
+#### Breaking encapsulation
+
+**⚠ Never allow a child have access to the parent instance directly!!!**
+That breaks the actor encapsulation: a child can access to parent variables and methods.
+A child should only have access to parent reference and communicate with using messages.
+
+Red flags are:
+* 🚩 A parent actor using ```this``` sending a message to a child
+  ```creditCardRef ! AttachToAccount(this)```
+* 🚩 A message that has as argument another actor
+  ```case class AttachToAccount(bankAccount: NaiveBankAccount)```
+* 🚩 An actor using another actor's method directly instead of sending a message parent actor using ```this``` sending a message to a child
+  ```case CheckStatus => account.withdraw(1)
